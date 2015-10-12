@@ -170,19 +170,21 @@ function processFile(sourceFile, callback) {
     output = {
       swagger: '2.0',
       info: {
-        version: source.version,
+        version: source.version ? source.version : '',
         title: source.title,
-        description: source.documentation ? source.documentation[0].title : '',
-        termsOfService: '',
-        contact: {},
-        license: {}
+        description: source.documentation ? source.documentation[0].title : ''
       },
       host: baseUrl.host,
       basePath: decodeURIComponent(basePath),
-      schemes: [baseUrl.protocol.replace(':', '')],
-      consumes: ['application/json'],
-      produces: ['application/json']
+      schemes: [baseUrl.protocol.replace(':', '')]
     };
+
+    // RAML defines mediaType as optional
+    if (source.mediaType) {
+      output.produces = output.consumes = [ source.mediaType ];
+    } else {
+      output.produces = output.consumes = ['application/json'];
+    }
 
     if (source.securitySchemes) {
       source.securitySchemes.forEach(function(securityScheme) {
