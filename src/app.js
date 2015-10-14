@@ -72,41 +72,40 @@ function processResource(resource, prefix, parentBaseParameters) {
 
   if (resource.methods) {
     resource.methods.forEach(function(method) {
-
       var parameters = baseParameters;
+
       parameters = parameters.concat(method.queryParameters ?
         Object.keys(method.queryParameters).map(function(key) {
           return buildParameter(key, 'query', method.queryParameters[key]);
         }) : []);
 
       // add body
-      var body = method.body;
-      if (body) {
-        if (body['application/json']) {
-          var param = {
-            name: 'body',
-            in: 'body',
-            schema: null  // todo: add this
-          };
-
-          // json ?
-          if (body['application/json'].schema) {
-            var parsedSchema = JSON.parse(body['application/json'].schema);
+      if (method.body) {
+        var bodies = method.body;
+        Object.keys(bodies).map(function(body) {
+          // Handle JSON like types
+          if (isJson(body) && bodies[body].schema) {
+            var parsedSchema = JSON.parse(bodies[body].schema);
             delete(parsedSchema['$schema']);
-            param.schema = parsedSchema;
+
+            parameters.push({
+              name: 'body',
+              in: 'body',
+              schema: parsedSchema
+            });
+
+          // Handle Form
+          } else if (body === 'application/x-www-form-urlencoded') {
+            var params = bodies[body].formParameters;
+
+            parameters = parameters.concat(params ?
+              Object.keys(params).map(function(key) {
+                return buildParameter(key, 'form', params[key]);
+              }) : []
+            );
           }
-
-          parameters.push(param);
-
-        } else if (body['application/x-www-form-urlencoded']) {
-          var params = body['application/x-www-form-urlencoded']
-            .formParameters;
-          parameters = parameters.concat(params ?
-            Object.keys(params).map(function(key) {
-              return buildParameter(key, 'form', params[key]);
-            }) : []);
-        }
-        // todo: add rest of types. See http://raml.org/docs-200.html#body-parameters
+          // todo: add rest of types. See http://raml.org/docs-200.html#body-parameters
+        });
       }
 
       var methodInfo = {
@@ -121,14 +120,17 @@ function processResource(resource, prefix, parentBaseParameters) {
             description: method.responses[key] && method.responses[key].description ? method.responses[key].description : ''
           };
 
-          // json ?
-          if (method.responses[key] &&
-              method.responses[key].body &&
-              method.responses[key].body['application/json'] &&
-              method.responses[key].body['application/json'].schema) {
-            var parsedSchema = JSON.parse(method.responses[key].body['application/json'].schema);
-            delete(parsedSchema['$schema']);
-            responseObject[key].schema = parsedSchema;
+          if (method.responses[key] && method.responses[key].body) {
+            var format = Object.keys(method.responses[key].body).find(function(format) {
+              return isJson(format);
+            });
+
+            if (format && method.responses[key].body[format].schema) {
+              var parsedSchema = JSON.parse(method.responses[key].body[format].schema);
+              delete(parsedSchema['$schema']);
+
+              responseObject[key].schema = parsedSchema;
+            }
           }
         });
         methodInfo.responses = responseObject;
@@ -161,6 +163,17 @@ function processResource(resource, prefix, parentBaseParameters) {
       baseParameters);
     });
   }
+}
+
+/**
+ * Check the value loosely for the term 'json'. This allows better support
+ * for API's that have a custom media type, but it's still JSON at heart.
+ *
+ * @param  {string}  contentType
+ * @return {boolean}
+ */
+function isJson(contentType) {
+  return contentType.search(/json/i) !== -1;
 }
 
 function processFile(sourceFile, callback) {
