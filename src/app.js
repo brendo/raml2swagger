@@ -125,7 +125,7 @@ function processResource(resource, prefix, parentBaseParameters) {
               return isJson(format);
             });
 
-            if (format && method.responses[key].body[format].schema) {
+            if (format && method.responses[key].body[format] && method.responses[key].body[format].schema) {
               var parsedSchema = JSON.parse(method.responses[key].body[format].schema);
               delete(parsedSchema['$schema']);
 
